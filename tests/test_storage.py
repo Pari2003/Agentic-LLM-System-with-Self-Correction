@@ -41,6 +41,15 @@ def main():
     
     clean_test_paths(test_db_path, test_chroma_path)
     
+    # Pre-clean Neo4j test sessions
+    try:
+        temp_graph = EntityGraph(db_path=test_db_path)
+        temp_graph.delete_session_graph("test_sess_1")
+        temp_graph.delete_session_graph("expired_sess_999")
+        temp_graph.close()
+    except Exception:
+        pass
+
     try:
         # 2. Test DocumentStore
         print("\n[1] Initializing DocumentStore...")
@@ -326,7 +335,12 @@ def main():
         # Verify VectorStore cleanup
         orig_vect_query = vector_store.query_similarity(dummy_embedding, session_id, top_k=2)
         assert len(orig_vect_query) == 0, "Vector chunks still exist in ChromaDB after close"
-        print("  Manual session close and cascading deletes verified.")
+        
+        # Verify EntityGraph cleanup in Neo4j
+        post_close_entities = graph_store.search_entities("Transformer", session_id)
+        assert len(post_close_entities) == 0, "Entities still exist in Neo4j after close"
+        
+        print("  Manual session close and cascading deletes verified (SQLite, ChromaDB, and Neo4j).")
         
         print("\nShutting down SessionManager scheduler...")
         sess_mgr.shutdown()
@@ -334,6 +348,11 @@ def main():
         print("\n=== PHASE 3 STORAGE INTEGRATION FULLY VERIFIED! ===")
 
     finally:
+        # Close graph_store connection
+        try:
+            graph_store.close()
+        except Exception:
+            pass
         # 6. Cleanup files
         print("\nCleaning up test directory...")
         clean_test_paths(test_db_path, test_chroma_path)

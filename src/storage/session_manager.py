@@ -138,6 +138,12 @@ class SessionManager:
         except Exception as e:
             logger.error("session_cleanup_sqlite_error", session_id=session_id, error=str(e))
 
+        # 3. Clean up Neo4j knowledge graph session data
+        try:
+            self.graph_store.delete_session_graph(session_id)
+        except Exception as e:
+            logger.error("session_cleanup_neo4j_error", session_id=session_id, error=str(e))
+
         logger.info("session_close_complete", session_id=session_id)
 
     def cleanup_expired_sessions(self) -> None:

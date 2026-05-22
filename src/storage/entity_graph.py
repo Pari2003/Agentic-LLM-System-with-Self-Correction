@@ -1,23 +1,25 @@
 """
-SQLite Entity Graph Store (Lightweight GraphRAG Database).
+Neo4j Entity Graph Store (GraphRAG Database).
 
 Responsible for storing the knowledge graph extracted from chunks:
-1. Entity nodes (name, type, source chunk/doc)
-2. Directed relationships/edges (source, target, relation label, confidence)
+1. Entity nodes (name, type, source chunk/doc, session_id)
+2. Directed relationships/edges (source, target, relation label, confidence, session_id)
 
 Design choices:
-- Store in the same SQLite database as document metadata to keep storage simple.
-- Uses SQLite FTS5 (Full-Text Search) for rapid text matches on entities mentioned in user queries.
-- Helps retrieve adjacent entities during Stage 1 hybrid retrieval.
+- Store in Neo4j to leverage Cypher queries and native graph search.
+- Use session_id tag on all nodes and relationships to keep data session-isolated.
+- Use a sanitization function to safely translate LLM relation names into Cypher relationship types.
 """
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
 
 import structlog
+from neo4j import GraphDatabase
 
 from src.config import settings
 from src.models.schemas import Entity, Relationship
@@ -25,205 +27,245 @@ from src.models.schemas import Entity, Relationship
 logger = structlog.get_logger(__name__)
 
 
+def sanitize_relationship_type(rel_type: str) -> str:
+    """Sanitize relationship type name to be valid for Cypher labels."""
+    # Allow only alphanumeric characters and underscores, uppercase
+    sanitized = re.sub(r"[^A-Za-z0-9_]", "_", rel_type).strip("_").upper()
+    return sanitized if sanitized else "RELATED_TO"
+
+
 class EntityGraph:
-    """Manages knowledge graph nodes and edges stored in SQLite."""
+    """Manages knowledge graph nodes and edges stored in Neo4j."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(
+        self,
+        uri: Optional[str] = None,
+        user: Optional[str] = None,
+        password: Optional[str] = None,
+        db_path: Optional[Path] = None,
+    ):
+        self.uri = uri or settings.neo4j_uri
+        self.user = user or settings.neo4j_user
+        self.password = password or settings.neo4j_password
         self.db_path = db_path or settings.sqlite_file
-        self._init_graph_tables()
-
-    def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA foreign_keys=ON;")
-        return conn
-
-    def _init_graph_tables(self) -> None:
-        """Create entity, relationship, and FTS tables."""
-        logger.info("entity_graph_init_start", path=str(self.db_path))
-        with self._get_connection() as conn:
-            # 1. Entities Table
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS entities (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    entity_type TEXT NOT NULL,
-                    document_id TEXT NOT NULL,
-                    chunk_id TEXT NOT NULL,
-                    FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
-                )
-                """
-            )
-
-            # 2. Relationships Table
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS relationships (
-                    id TEXT PRIMARY KEY,
-                    source_entity_id TEXT NOT NULL,
-                    source_entity_name TEXT NOT NULL,
-                    relation_type TEXT NOT NULL,
-                    target_entity_id TEXT NOT NULL,
-                    target_entity_name TEXT NOT NULL,
-                    chunk_id TEXT NOT NULL,
-                    confidence REAL DEFAULT 1.0,
-                    FOREIGN KEY (source_entity_id) REFERENCES entities (id) ON DELETE CASCADE,
-                    FOREIGN KEY (target_entity_id) REFERENCES entities (id) ON DELETE CASCADE
-                )
-                """
-            )
-
-            # 3. Create FTS5 Virtual Table for Entities (for fast entity matching)
-            # FTS5 tables cannot have external primary keys or foreign keys directly
-            conn.execute(
-                """
-                CREATE VIRTUAL TABLE IF NOT EXISTS entities_fts USING fts5(
-                    name,
-                    entity_type,
-                    content='entities',
-                    content_rowid='rowid'
-                )
-                """
-            )
-
-            # Trigger to keep FTS table in sync on INSERT
-            conn.execute(
-                """
-                CREATE TRIGGER IF NOT EXISTS trg_entities_ai AFTER INSERT ON entities BEGIN
-                    INSERT INTO entities_fts(rowid, name, entity_type) 
-                    VALUES (new.rowid, new.name, new.entity_type);
-                END
-                """
-            )
-
-            # Trigger to keep FTS table in sync on DELETE
-            conn.execute(
-                """
-                CREATE TRIGGER IF NOT EXISTS trg_entities_ad AFTER DELETE ON entities BEGIN
-                    INSERT INTO entities_fts(entities_fts, rowid, name, entity_type) 
-                    VALUES('delete', old.rowid, old.name, old.entity_type);
-                END
-                """
-            )
-
-            # Indexes for graph lookups
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_entities_chunk ON entities(chunk_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_rel_source ON relationships(source_entity_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_rel_target ON relationships(target_entity_id);")
-
-            conn.commit()
         
-        logger.info("entity_graph_init_complete")
+        logger.info("neo4j_driver_init_start", uri=self.uri, user=self.user)
+        self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+        self._init_constraints()
+
+    def close(self) -> None:
+        """Close the Neo4j driver connection."""
+        self.driver.close()
+
+    def __del__(self) -> None:
+        try:
+            self.driver.close()
+        except Exception:
+            pass
+
+    def _init_constraints(self) -> None:
+        """Create uniqueness constraints and indexes in Neo4j."""
+        logger.info("neo4j_init_constraints_start")
+        try:
+            with self.driver.session() as session:
+                # Uniqueness constraint on Entity ID
+                session.run(
+                    "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE"
+                )
+                # Index on Entity name for fast searching/lookup
+                session.run(
+                    "CREATE INDEX entity_name IF NOT EXISTS FOR (e:Entity) ON (e.name)"
+                )
+                # Index on Entity session_id for fast cleanup and session-based lookups
+                session.run(
+                    "CREATE INDEX entity_session IF NOT EXISTS FOR (e:Entity) ON (e.session_id)"
+                )
+            logger.info("neo4j_init_constraints_complete")
+        except Exception as e:
+            logger.error("neo4j_init_constraints_failed", error=str(e))
+
+    def _get_session_id_for_document(self, document_id: str) -> str:
+        """Retrieve session_id for a given document_id from SQLite metadata store."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT session_id FROM documents WHERE id = ?", (document_id,)
+                ).fetchone()
+                if row:
+                    return row["session_id"]
+        except Exception as e:
+            logger.error("sqlite_session_lookup_failed", document_id=document_id, error=str(e))
+        return "default_session"
+
+    def _get_session_id_for_chunk(self, chunk_id: str) -> str:
+        """Retrieve session_id for a given chunk_id from SQLite child metadata."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    "SELECT session_id FROM child_chunk_metadata WHERE id = ?", (chunk_id,)
+                ).fetchone()
+                if row:
+                    return row["session_id"]
+        except Exception as e:
+            logger.error("sqlite_session_lookup_chunk_failed", chunk_id=chunk_id, error=str(e))
+        return "default_session"
 
     def save_graph_elements(
         self,
         entities: list[Entity],
         relationships: list[Relationship],
     ) -> None:
-        """Bulk save entities and relationships into the graph store."""
+        """Bulk save entities and relationships into the Neo4j graph store."""
         if not entities and not relationships:
             return
 
-        with self._get_connection() as conn:
-            # 1. Save Entities
-            if entities:
-                conn.executemany(
-                    """
-                    INSERT INTO entities (id, name, entity_type, document_id, chunk_id)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO NOTHING
-                    """,
-                    [(e.id, e.name, e.entity_type.value, e.document_id, e.chunk_id) for e in entities],
-                )
+        # 1. Resolve sessions for entities
+        entity_data = []
+        for e in entities:
+            session_id = self._get_session_id_for_document(e.document_id)
+            entity_data.append({
+                "id": e.id,
+                "name": e.name,
+                "type": e.entity_type.value,
+                "document_id": e.document_id,
+                "chunk_id": e.chunk_id,
+                "session_id": session_id
+            })
 
-            # 2. Save Relationships
-            if relationships:
-                conn.executemany(
-                    """
-                    INSERT INTO relationships (
-                        id, source_entity_id, source_entity_name, relation_type, 
-                        target_entity_id, target_entity_name, chunk_id, confidence
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO NOTHING
-                    """,
-                    [
-                        (
-                            r.id,
-                            r.source_entity_id,
-                            r.source_entity_name,
-                            r.relation_type,
-                            r.target_entity_id,
-                            r.target_entity_name,
-                            r.chunk_id,
-                            r.confidence,
-                        )
-                        for r in relationships
-                    ],
-                )
-            conn.commit()
+        # 2. Save Entities in a transaction
+        try:
+            with self.driver.session() as session:
+                entity_query = """
+                UNWIND $entities AS ent
+                MERGE (e:Entity {name: ent.name, session_id: ent.session_id})
+                ON CREATE SET 
+                    e.id = ent.id,
+                    e.type = ent.type,
+                    e.document_id = ent.document_id,
+                    e.chunk_id = ent.chunk_id
+                """
+                session.run(entity_query, entities=entity_data)
 
-        logger.info(
-            "graph_elements_saved",
-            num_entities=len(entities),
-            num_relationships=len(relationships),
-        )
+                # 3. Save Relationships
+                for r in relationships:
+                    session_id = self._get_session_id_for_chunk(r.chunk_id)
+                    rel_label = sanitize_relationship_type(r.relation_type)
+                    
+                    # Match by name and session_id to connect the correct nodes within the same session
+                    rel_query = f"""
+                    MATCH (s:Entity {{name: $source_name, session_id: $session_id}})
+                    MATCH (t:Entity {{name: $target_name, session_id: $session_id}})
+                    MERGE (s)-[r:{rel_label}]->(t)
+                    SET r.id = $id,
+                        r.chunk_id = $chunk_id,
+                        r.session_id = $session_id,
+                        r.confidence = $confidence
+                    """
+                    session.run(
+                        rel_query,
+                        source_name=r.source_entity_name,
+                        target_name=r.target_entity_name,
+                        session_id=session_id,
+                        id=r.id,
+                        chunk_id=r.chunk_id,
+                        confidence=r.confidence
+                    )
+            
+            logger.info(
+                "graph_elements_saved",
+                num_entities=len(entities),
+                num_relationships=len(relationships),
+            )
+        except Exception as e:
+            logger.error("graph_elements_save_failed", error=str(e))
+            raise
 
     def search_entities(self, query: str, session_id: str) -> list[dict[str, Any]]:
-        """Search entities by name using FTS5 match, filtered by session_id.
-
-        Args:
-            query: The keyword search term.
-            session_id: Active session filter constraint.
-
-        Returns:
-            List of matching Entity records.
-        """
-        # Clean query for FTS5 (escape special characters)
-        clean_query = query.replace('"', '').replace("'", "").strip()
+        """Search entities by name (substring match) filtered by session_id."""
+        clean_query = query.strip()
         if not clean_query:
             return []
 
-        with self._get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT e.* FROM entities e
-                JOIN entities_fts f ON f.rowid = e.rowid
-                WHERE entities_fts MATCH ? AND e.id IN (
-                    SELECT id FROM entities WHERE document_id IN (
-                        SELECT id FROM documents WHERE session_id = ?
-                    )
+        try:
+            with self.driver.session() as session:
+                result = session.run(
+                    """
+                    MATCH (e:Entity {session_id: $session_id})
+                    WHERE toLower(e.name) CONTAINS toLower($q)
+                    RETURN e.id AS id, e.name AS name, e.type AS entity_type, e.document_id AS document_id, e.chunk_id AS chunk_id
+                    """,
+                    q=clean_query,
+                    session_id=session_id
                 )
-                """,
-                (f"{clean_query}*", session_id),
-            ).fetchall()
-
-            return [dict(r) for r in rows]
+                return [record.data() for record in result]
+        except Exception as e:
+            logger.error("search_entities_failed", query=query, session_id=session_id, error=str(e))
+            return []
 
     def get_neighbors_by_entity_id(self, entity_id: str) -> list[dict[str, Any]]:
         """Find adjacent entities connected by one-hop relations."""
-        with self._get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT r.*, e1.name as source_name, e2.name as target_name 
-                FROM relationships r
-                JOIN entities e1 ON r.source_entity_id = e1.id
-                JOIN entities e2 ON r.target_entity_id = e2.id
-                WHERE r.source_entity_id = ? OR r.target_entity_id = ?
-                """,
-                (entity_id, entity_id),
-            ).fetchall()
-            return [dict(r) for r in rows]
+        try:
+            with self.driver.session() as session:
+                result = session.run(
+                    """
+                    MATCH (s:Entity)-[r]->(t:Entity)
+                    WHERE s.id = $entity_id OR t.id = $entity_id
+                    RETURN r.id AS id, 
+                           s.id AS source_entity_id, 
+                           s.name AS source_entity_name, 
+                           type(r) AS relation_type, 
+                           t.id AS target_entity_id, 
+                           t.name AS target_entity_name, 
+                           r.chunk_id AS chunk_id, 
+                           r.confidence AS confidence, 
+                           s.name AS source_name, 
+                           t.name AS target_name
+                    """,
+                    entity_id=entity_id
+                )
+                return [record.data() for record in result]
+        except Exception as e:
+            logger.error("get_neighbors_failed", entity_id=entity_id, error=str(e))
+            return []
 
     def get_relationships_for_chunk(self, chunk_id: str) -> list[dict[str, Any]]:
         """Retrieve all graph edges associated with a specific text chunk."""
-        with self._get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT * FROM relationships WHERE chunk_id = ?
-                """,
-                (chunk_id,),
-            ).fetchall()
-            return [dict(r) for r in rows]
+        try:
+            with self.driver.session() as session:
+                result = session.run(
+                    """
+                    MATCH (s:Entity)-[r]->(t:Entity)
+                    WHERE r.chunk_id = $chunk_id
+                    RETURN r.id AS id, 
+                           s.id AS source_entity_id, 
+                           s.name AS source_entity_name, 
+                           type(r) AS relation_type, 
+                           t.id AS target_entity_id, 
+                           t.name AS target_entity_name, 
+                           r.chunk_id AS chunk_id, 
+                           r.confidence AS confidence
+                    """,
+                    chunk_id=chunk_id
+                )
+                return [record.data() for record in result]
+        except Exception as e:
+            logger.error("get_relationships_for_chunk_failed", chunk_id=chunk_id, error=str(e))
+            return []
+
+    def delete_session_graph(self, session_id: str) -> None:
+        """Delete all entities and relationships associated with a session."""
+        logger.info("neo4j_session_cleanup_start", session_id=session_id)
+        try:
+            with self.driver.session() as session:
+                session.run(
+                    """
+                    MATCH (n {session_id: $session_id})
+                    DETACH DELETE n
+                    """,
+                    session_id=session_id
+                )
+            logger.info("neo4j_session_cleanup_complete", session_id=session_id)
+        except Exception as e:
+            logger.error("neo4j_session_cleanup_failed", session_id=session_id, error=str(e))

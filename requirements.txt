@@ -41,3 +41,6 @@ pytest-cov>=6.0.0
 
 # ─── Tokenization (for accurate chunk sizing) ────────
 tiktoken>=0.8.0
+
+# ─── Graph Database ──────────────────────────────────
+neo4j>=5.18.0
