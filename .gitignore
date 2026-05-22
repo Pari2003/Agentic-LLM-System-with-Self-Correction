@@ -1,0 +1,59 @@
+# ─── Python ────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ─── Virtual Environment ──────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ─── IDE ───────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ─── Environment Variables (NEVER commit secrets) ─────
+.env
+.env.local
+.env.production
+
+# ─── Data & Models (too large for git) ─────────────────
+data/chromadb/
+data/metadata.db
+data/papers/*.pdf
+!data/papers/.gitkeep
+data/eval/results/
+
+# ─── Logs ──────────────────────────────────────────────
+logs/
+*.log
+
+# ─── OS ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Testing ──────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ─── Jupyter (if any) ─────────────────────────────────
+.ipynb_checkpoints/
+
+# ─── Docker ───────────────────────────────────────────
+*.pid

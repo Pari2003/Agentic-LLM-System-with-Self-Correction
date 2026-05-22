@@ -1,0 +1,43 @@
+# ═══════════════════════════════════════════════════════
+# Agentic LLM System with Self-Correction
+# All dependencies (install once, use across all phases)
+# ═══════════════════════════════════════════════════════
+
+# ─── Core Framework ───────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+
+# ─── LLM Client ──────────────────────────────────────
+httpx>=0.28.0
+
+# ─── PDF Processing ──────────────────────────────────
+pdfplumber>=0.11.0
+PyMuPDF>=1.25.0
+
+# ─── Vector Store ────────────────────────────────────
+chromadb>=0.6.0
+
+# ─── Keyword Search ──────────────────────────────────
+rank-bm25>=0.2.2
+
+# ─── Numerical / Embeddings ──────────────────────────
+numpy>=2.0.0
+
+# ─── Structured Logging ──────────────────────────────
+structlog>=24.0.0
+
+# ─── File Upload Support ─────────────────────────────
+python-multipart>=0.0.18
+
+# ─── Async Scheduling (session cleanup) ──────────────
+apscheduler>=3.10.0
+
+# ─── Testing ─────────────────────────────────────────
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
+pytest-cov>=6.0.0
+
+# ─── Tokenization (for accurate chunk sizing) ────────
+tiktoken>=0.8.0
