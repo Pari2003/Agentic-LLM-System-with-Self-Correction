@@ -32,6 +32,7 @@ ENV/
 # ─── Data & Models (too large for git) ─────────────────
 data/chromadb/
 data/metadata.db
+data/test_storage_run/
 data/papers/*.pdf
 !data/papers/.gitkeep
 data/eval/results/
