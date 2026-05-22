@@ -136,6 +136,35 @@ class VectorStore:
         )
         return retrieved
 
+    def get_session_chunks(self, session_id: str) -> list[dict[str, Any]]:
+        """Retrieve all text chunks and metadata for a session.
+
+        Used to build BM25 search indices dynamically on-the-fly.
+        """
+        logger.debug("chromadb_get_session_chunks_start", session_id=session_id)
+        results = self.collection.get(
+            where={"session_id": session_id},
+            include=["documents", "metadatas"]
+        )
+
+        chunks = []
+        if not results or not results["ids"]:
+            return chunks
+
+        ids = results["ids"]
+        documents = results["documents"]
+        metadatas = results["metadatas"]
+
+        for i in range(len(ids)):
+            chunks.append({
+                "id": ids[i],
+                "text": documents[i],
+                "metadata": metadatas[i] or {}
+            })
+
+        logger.debug("chromadb_get_session_chunks_complete", session_id=session_id, count=len(chunks))
+        return chunks
+
     def delete_session_chunks(self, session_id: str) -> None:
         """Delete all vectors and metadata belonging to a session."""
         logger.info("chromadb_session_cleanup_start", session_id=session_id)
