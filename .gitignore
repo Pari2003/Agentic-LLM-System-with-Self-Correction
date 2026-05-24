@@ -30,9 +30,13 @@ ENV/
 .env.production
 
 # ─── Data & Models (too large for git) ─────────────────
+chroma_db/
+models/
+app/
 data/chromadb/
 data/metadata.db
 data/test_storage_run/
+data/test_*_run/
 data/papers/*.pdf
 !data/papers/.gitkeep
 data/eval/results/
