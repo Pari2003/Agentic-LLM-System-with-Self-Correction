@@ -1,0 +1,202 @@
+[
+  {
+    "id": "q01",
+    "query": "What is the primary contribution of the self-correction mechanism in agentic RAG?",
+    "ground_truth_answer": "The primary contribution is a multi-stage retrieval pipeline coupled with self-correction feedback loops where a critic evaluates generated claims for factual overlap, and a refiner rewrites unverified statements, achieving a 25 percent improvement in response reliability.",
+    "relevant_chunk_keywords": ["self-correction", "critic", "refiner", "reliability"],
+    "difficulty": "simple",
+    "category": "system_design"
+  },
+  {
+    "id": "q02",
+    "query": "How does the semantic chunking process determine where to split text?",
+    "ground_truth_answer": "The semantic chunker embeds each sentence using nomic-embed-text, computes cosine similarity between consecutive sentence embeddings, and splits at boundaries where similarity falls below a percentile-based threshold (bottom 25th percentile). This approach adapts per document unlike fixed-size splitting.",
+    "relevant_chunk_keywords": ["semantic chunking", "cosine similarity", "percentile", "boundary detection"],
+    "difficulty": "moderate",
+    "category": "ingestion"
+  },
+  {
+    "id": "q03",
+    "query": "Explain the parent-child retrieval architecture and why it is used.",
+    "ground_truth_answer": "Small child chunks (~256 tokens) are embedded in ChromaDB for precise vector search. When a child chunk is retrieved, its parent chunk (~1024 tokens) is looked up from SQLite to provide the LLM with richer context for generation. This 'small-to-big' pattern combines retrieval precision with generation context richness.",
+    "relevant_chunk_keywords": ["parent chunk", "child chunk", "small-to-big", "ChromaDB", "SQLite"],
+    "difficulty": "moderate",
+    "category": "retrieval"
+  },
+  {
+    "id": "q04",
+    "query": "What are the three layers of hallucination detection in the Critic agent?",
+    "ground_truth_answer": "Layer 1: Embedding similarity using cosine similarity between claim and source chunk embeddings. Layer 2: NLI entailment check using Llama 3.2 to classify whether the source supports, contradicts, or is neutral to the claim. Layer 3: Keyword and numerical overlap check that verifies named entities, numbers, and dates against the source text.",
+    "relevant_chunk_keywords": ["embedding similarity", "NLI", "entailment", "keyword overlap", "hallucination"],
+    "difficulty": "moderate",
+    "category": "evaluation"
+  },
+  {
+    "id": "q05",
+    "query": "How is the confidence score for each claim calculated?",
+    "ground_truth_answer": "The per-claim confidence score is computed as a weighted combination: 0.4 × embedding_similarity + 0.4 × entailment_score + 0.2 × keyword_overlap_score. A claim is flagged as hallucinated if the overall confidence falls below 0.70 or the NLI result is CONTRADICTS.",
+    "relevant_chunk_keywords": ["confidence", "0.4", "embedding", "entailment", "keyword", "0.70"],
+    "difficulty": "moderate",
+    "category": "evaluation"
+  },
+  {
+    "id": "q06",
+    "query": "What is RRF fusion and how does the system incorporate graph entity boosting?",
+    "ground_truth_answer": "Reciprocal Rank Fusion (RRF) combines vector search and BM25 keyword search rankings using the formula: rrf_score = 1/(k + rank_vector) + 1/(k + rank_bm25) where k=60. The system adds a graph boost weight (0.02) to chunks containing entities that are related to the query entities found in the Neo4j knowledge graph.",
+    "relevant_chunk_keywords": ["RRF", "reciprocal rank fusion", "BM25", "graph boost", "entity"],
+    "difficulty": "complex",
+    "category": "retrieval"
+  },
+  {
+    "id": "q07",
+    "query": "Why does the system use three retrieval stages instead of one?",
+    "ground_truth_answer": "Stage 1 (hybrid search) is fast but imprecise, returning top 20 child chunks. Stage 2 (parent expansion) expands child chunks to their larger parent chunks for richer context. Stage 3 (LLM reranking) is slow but precise, using Llama 3.2 to score only the top 8-10 candidates and selecting the final top 5. This cascading approach balances speed with accuracy.",
+    "relevant_chunk_keywords": ["three stages", "hybrid search", "parent expansion", "LLM rerank", "top 5"],
+    "difficulty": "moderate",
+    "category": "retrieval"
+  },
+  {
+    "id": "q08",
+    "query": "How does session isolation work in the storage layer?",
+    "ground_truth_answer": "ChromaDB uses session_id in metadata to filter chunks during retrieval, ensuring each session only accesses its own documents. Neo4j entities are tagged with session_id for scoped cleanup via DETACH DELETE. SQLite stores session metadata with TTL-based expiry. Background cleanup runs hourly to remove expired session data.",
+    "relevant_chunk_keywords": ["session_id", "isolation", "TTL", "cleanup", "ChromaDB", "Neo4j"],
+    "difficulty": "moderate",
+    "category": "storage"
+  },
+  {
+    "id": "q09",
+    "query": "What role does Moondream2 play in the system and what are its constraints?",
+    "ground_truth_answer": "Moondream2 is a lightweight vision model (~1.7GB) used during PDF ingestion to generate text captions for figures and charts. It cannot run simultaneously with Llama 3.2 on an 8GB system, so Ollama swaps models automatically. Captions are stored as child chunks with type 'figure_caption' and linked to surrounding text parent chunks.",
+    "relevant_chunk_keywords": ["Moondream2", "vision", "caption", "image", "figure", "1.7GB"],
+    "difficulty": "simple",
+    "category": "ingestion"
+  },
+  {
+    "id": "q10",
+    "query": "Describe how the Refiner agent uses critique feedback to correct hallucinations.",
+    "ground_truth_answer": "The Refiner receives the CritiqueResult containing detailed hallucinated claims with explanations. It constructs a prompt that includes the original answer, the source contexts, and a list of specific hallucinated claims with error descriptions. The LLM then generates a corrected answer that removes or replaces unverified claims while maintaining proper source citations.",
+    "relevant_chunk_keywords": ["refiner", "critique", "hallucinated claims", "correction", "citation"],
+    "difficulty": "moderate",
+    "category": "agents"
+  },
+  {
+    "id": "q11",
+    "query": "What is the difference between the retrieval evaluation metrics and the LLM-as-Judge metrics?",
+    "ground_truth_answer": "Retrieval metrics (Context Precision, Context Recall, MRR@k, NDCG@k, Hit Rate@k) are computed without any LLM calls — they are fast and free, measuring how well the retrieval pipeline finds relevant chunks. LLM-as-Judge metrics (Faithfulness, Answer Relevancy, Completeness) require LLM calls to evaluate generation quality. The dual framework runs retrieval metrics first, and only evaluates generation if retrieval is satisfactory.",
+    "relevant_chunk_keywords": ["context precision", "MRR", "faithfulness", "relevancy", "completeness"],
+    "difficulty": "complex",
+    "category": "evaluation"
+  },
+  {
+    "id": "q12",
+    "query": "How does the Query Analyzer agent decompose complex multi-hop queries?",
+    "ground_truth_answer": "The Query Analyzer classifies query complexity (simple, moderate, complex), extracts relevant entities for graph lookup, generates rewritten search queries optimized for retrieval, and decomposes multi-hop questions into sub-queries that can be answered independently and then combined.",
+    "relevant_chunk_keywords": ["query analyzer", "complexity", "sub-queries", "entities", "decompose"],
+    "difficulty": "moderate",
+    "category": "agents"
+  },
+  {
+    "id": "q13",
+    "query": "What happens when the self-correction loop reaches the maximum number of iterations?",
+    "ground_truth_answer": "If the self-correction loop exhausts its maximum iterations (default 2), the system accepts the current answer as-is regardless of the confidence score. The final response includes the confidence score, number of correction iterations performed, and the full claim report so the user can assess the quality of the response.",
+    "relevant_chunk_keywords": ["max iterations", "correction", "confidence", "accept", "claim report"],
+    "difficulty": "simple",
+    "category": "system_design"
+  },
+  {
+    "id": "q14",
+    "query": "Compare the advantages of using Neo4j for entity storage versus a simple SQLite approach.",
+    "ground_truth_answer": "Neo4j provides native graph traversal for one-hop and multi-hop entity relationship queries, making it efficient for questions like 'What datasets were used to evaluate transformer models?' where following relationship edges (EVALUATED_ON) is natural. While SQLite stores entities in flat tables, Neo4j's Cypher query language makes relationship-based filtering and entity discovery more expressive and performant for graph-shaped data.",
+    "relevant_chunk_keywords": ["Neo4j", "graph", "Cypher", "relationship", "entity", "traversal"],
+    "difficulty": "complex",
+    "category": "storage"
+  },
+  {
+    "id": "q15",
+    "query": "What embedding model is used and what are its key specifications?",
+    "ground_truth_answer": "The system uses nomic-embed-text via Ollama, which produces 768-dimensional embedding vectors. It requires approximately 300MB of RAM. Texts are embedded in batches of 32 for efficiency during ingestion, and single embeddings are generated on-the-fly during query time.",
+    "relevant_chunk_keywords": ["nomic-embed-text", "768", "embedding", "300MB", "batch"],
+    "difficulty": "simple",
+    "category": "system_design"
+  },
+  {
+    "id": "q16",
+    "query": "How does the Generator agent create citation-backed responses?",
+    "ground_truth_answer": "The Generator formats each retrieved parent chunk as a numbered source with document title, section, and page numbers. It instructs the LLM to cite every fact with bracketed source numbers (e.g., [1], [2]). After generation, it parses citation matches using regex, links each [N] reference to the corresponding source document metadata, and returns structured Citation objects alongside the answer text.",
+    "relevant_chunk_keywords": ["generator", "citation", "source_id", "document_title", "regex"],
+    "difficulty": "moderate",
+    "category": "agents"
+  },
+  {
+    "id": "q17",
+    "query": "What is the overall pipeline latency budget and where are the bottlenecks?",
+    "ground_truth_answer": "The target is under 15 seconds end-to-end on CPU. Stage 1 hybrid search is fast (milliseconds). Stage 3 LLM reranking takes approximately 2 seconds for 5 scoring calls. Generation and critique each involve LLM calls. The self-correction loop can add significant latency when triggered (up to 2 additional generate+critique cycles). The biggest bottleneck is the LLM inference time.",
+    "relevant_chunk_keywords": ["latency", "15 seconds", "bottleneck", "LLM", "reranking"],
+    "difficulty": "moderate",
+    "category": "system_design"
+  },
+  {
+    "id": "q18",
+    "query": "How does the system handle tables and figures from PDF documents?",
+    "ground_truth_answer": "Tables are extracted by pdfplumber and converted to markdown format for text representation. Figures/images are filtered (skip tiny images under 100x100px), then captioned using Moondream2 vision model via Ollama. Captions are stored as child chunks with chunk_type 'figure_caption' and linked to the surrounding text's parent chunk via parent_id.",
+    "relevant_chunk_keywords": ["table", "markdown", "figure", "caption", "pdfplumber", "Moondream2"],
+    "difficulty": "moderate",
+    "category": "ingestion"
+  },
+  {
+    "id": "q19",
+    "query": "What entity types does the system extract during ingestion and how are they stored?",
+    "ground_truth_answer": "The system extracts seven entity types: METHOD, DATASET, METRIC, MODEL, PERSON, ORGANIZATION, and TASK. Entities are extracted from parent chunks using one LLM call each and stored as nodes in Neo4j with properties including name, type, document_id, chunk_id, and session_id. Relationships between entities (USES, EVALUATED_ON, OUTPERFORMS, etc.) are stored as directed edges.",
+    "relevant_chunk_keywords": ["entity", "METHOD", "DATASET", "MODEL", "Neo4j", "relationship"],
+    "difficulty": "moderate",
+    "category": "storage"
+  },
+  {
+    "id": "q20",
+    "query": "Why is BM25 built dynamically per query instead of being persisted?",
+    "ground_truth_answer": "Since sessions are lightweight and contain 1-5 papers with approximately 200 child chunks maximum, building the BM25 index on-the-fly per query from ChromaDB session chunks is fast enough. This approach avoids the complexity of persisting separate BM25 indexes per session, which would require additional storage management and cleanup logic.",
+    "relevant_chunk_keywords": ["BM25", "dynamic", "on-the-fly", "session", "200 chunks"],
+    "difficulty": "simple",
+    "category": "retrieval"
+  },
+  {
+    "id": "q21",
+    "query": "What is the difference between how the system handles text generation vs structured JSON output?",
+    "ground_truth_answer": "For text generation, the system uses Ollama's standard /api/generate endpoint with a system prompt and user prompt. For structured JSON output (used by entity extraction, claim extraction, and NLI checks), it sets the 'format' field to 'json' in the request payload, which constrains Ollama to output valid JSON. JSON parsing failures fall back to an empty dict.",
+    "relevant_chunk_keywords": ["generate", "JSON", "format", "structured", "Ollama"],
+    "difficulty": "moderate",
+    "category": "system_design"
+  },
+  {
+    "id": "q22",
+    "query": "How does the evaluation framework separate retrieval problems from generation problems?",
+    "ground_truth_answer": "The dual framework runs retrieval evaluation first (free, no LLM calls) using metrics like Context Precision, Recall, MRR@k, and NDCG@k. If retrieval metrics are poor, the problem is in retrieval and generation evaluation is skipped to save LLM costs. Only if retrieval is good but answers are bad does the system run the LLM-as-Judge evaluation (Faithfulness, Answer Relevancy, Completeness). This separation isolates which component needs fixing.",
+    "relevant_chunk_keywords": ["dual", "retrieval first", "LLM judge", "cost", "separation"],
+    "difficulty": "complex",
+    "category": "evaluation"
+  },
+  {
+    "id": "q23",
+    "query": "What retry and error handling strategies does the Ollama client implement?",
+    "ground_truth_answer": "The client uses exponential backoff retry logic (2s, 4s, 8s delays) for connection errors, timeouts, and HTTP 5xx server errors. It does NOT retry HTTP 4xx client errors. The client uses lazy initialization of the HTTP connection, and has configurable timeout (default 120s) and max retries (default 3). Health checks report model availability for text, embedding, and vision models.",
+    "relevant_chunk_keywords": ["retry", "exponential backoff", "timeout", "health check", "4xx", "5xx"],
+    "difficulty": "moderate",
+    "category": "system_design"
+  },
+  {
+    "id": "q24",
+    "query": "What is the NLI entailment check optimization and when is it skipped?",
+    "ground_truth_answer": "The NLI check is optimized by skipping the expensive LLM call when embedding similarity is extremely high (>= 0.82, assumes alignment) or very low (< 0.35, assumes no overlap). The full LLM-as-NLI call is only made for ambiguous cases where embedding similarity falls between 0.35 and 0.82, reducing total LLM calls by handling clear-cut cases with fast heuristics.",
+    "relevant_chunk_keywords": ["NLI", "optimization", "0.82", "0.35", "skip", "embedding similarity"],
+    "difficulty": "complex",
+    "category": "evaluation"
+  },
+  {
+    "id": "q25",
+    "query": "Describe the full lifecycle of a user query from input to final response.",
+    "ground_truth_answer": "1) The Query Analyzer classifies intent and extracts entities. 2) Stage 1 Hybrid Search combines vector search, BM25, and graph boost via RRF to get top 20 child chunks. 3) Stage 2 Parent Expansion looks up parent chunks and deduplicates to ~10 parents. 4) Stage 3 LLM Reranking scores and selects top 5 parents. 5) The Generator creates a citation-backed answer. 6) The Critic performs 3-layer hallucination detection. 7) If confidence < 0.70, the Refiner corrects the answer and re-critiques (up to 2 iterations). 8) The final response includes the answer, citations, confidence score, claim report, and latency metrics.",
+    "relevant_chunk_keywords": ["query analyzer", "hybrid search", "parent expansion", "rerank", "generator", "critic", "refiner", "orchestrator"],
+    "difficulty": "complex",
+    "category": "system_design"
+  }
+]
