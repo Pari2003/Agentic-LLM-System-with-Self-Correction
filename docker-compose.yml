@@ -25,6 +25,9 @@ services:
     environment:
       NEO4J_AUTH: neo4j/password123
       NEO4J_PLUGINS: '[]'
+      NEO4J_server_memory_heap_initial__size: 128m
+      NEO4J_server_memory_heap_max__size: 256m
+      NEO4J_server_memory_pagecache_size: 128m
     volumes:
       - neo4j_data:/data
     deploy:
