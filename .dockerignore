@@ -1,0 +1,33 @@
+# Git and IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python Cache & Builds
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Databases, Cache, and Model Weights (too large for build context)
+chroma_db/
+models/
+data/
+sqlite.db
+data/chromadb/
+data/metadata.db
+data/papers/
+data/eval/results/
