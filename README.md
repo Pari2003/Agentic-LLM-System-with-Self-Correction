@@ -1,5 +1,10 @@
 # Agentic RAG QA System with Self-Correction
 
+![CI](https://github.com/Pari2003/Agentic-LLM-System-with-Self-Correction/actions/workflows/ci.yml/badge.svg)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Llama 3.2](https://img.shields.io/badge/LLM-Llama%203.2-orange)
+
 An advanced, production-grade **Agentic Retrieval-Augmented Generation (RAG)** pipeline designed to minimize LLM hallucinations and maximize response correctness. The system implements a robust **Retrieve → Generate → Critique → Refine** loop, powered by a multi-layered verification framework (Semantic Embeddings, NLI-based Entailment, and Keyword overlap).
 
 ---
@@ -28,15 +33,55 @@ An advanced, production-grade **Agentic Retrieval-Augmented Generation (RAG)** p
 * **Vector Store**: ChromaDB (v0.5.0+)
 * **Graph Database**: Neo4j (v5 Community)
 * **Metadata/Search**: SQLite (FTS5)
-* **LLM Engine**: Ollama (for offline execution) or any compatible OpenAI/HuggingFace client
+* **LLM Engine**: Ollama (fully local, no API keys)
+* **Text Model**: Llama 3.2 (3B) — generation, NLI, entity extraction, reranking
+* **Embedding Model**: nomic-embed-text — 768-dim dense embeddings
+* **Vision Model**: Moondream2 — figure/chart captioning during PDF ingestion
 * **API Framework**: FastAPI + Pydantic v2 + Uvicorn
 * **Orchestration**: Custom async state pipeline
+* **CI/CD**: GitHub Actions (lint + validate on every push)
 
 ---
 
 ## 🗺️ System Architecture
 
-For a detailed visual guide and breakdown of the pipeline, see [docs/architecture.md](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/docs/architecture.md).
+For a detailed breakdown, see [docs/architecture.md](docs/architecture.md).
+
+```mermaid
+graph TD
+    subgraph Ingestion ["1. Multi-Tier Ingestion & Storage"]
+        PDF[PDF Research Paper] --> Parse[PDF Parsing & Layout Extraction]
+        Parse --> Split[Semantic Chunking]
+        Split -->|Large ~1024t| Parent[Parent Chunks]
+        Split -->|Small ~256t| Child[Child Chunks]
+        Parent -->|Save Text & Metadata| SQLite[(SQLite + FTS5)]
+        Child -->|Generate Embeddings| Chroma[(ChromaDB)]
+        Parent -->|LLM Entity Extraction| Graph[Entity Extraction]
+        Graph -->|Save Nodes & Edges| Neo4j[(Neo4j Graph)]
+    end
+
+    subgraph Retrieval ["2. Three-Stage Hybrid Retrieval"]
+        Query[User Question] --> QA[Query Analyzer]
+        QA -->|Semantic Query + Entities| HS[Stage 1: Hybrid Search]
+        Chroma -->|Vector Search| HS
+        SQLite -->|BM25 Keyword Search| HS
+        Neo4j -->|Entity Match| HS
+        HS -->|RRF + Graph Boost| PE[Stage 2: Parent Expansion]
+        PE --> RR[Stage 3: LLM Reranking]
+        RR -->|Top-k Contexts| Gen[Generator Agent]
+    end
+
+    subgraph Pipeline ["3. Agentic Self-Correction Loop"]
+        Gen -->|Draft Answer| Critic[Critic Agent]
+        Critic --> L1[Layer 1: Embedding Similarity]
+        Critic --> L2[Layer 2: NLI Entailment]
+        Critic --> L3[Layer 3: Keyword Overlap]
+        L1 & L2 & L3 --> Score[Confidence Score]
+        Score -->|≥ 0.7| OK[Accept Response]
+        Score -->|< 0.7| Refine[Refiner Agent]
+        Refine -->|Corrected Answer| Critic
+    end
+```
 
 ---
 
@@ -135,6 +180,47 @@ python run.py
 
 ---
 
+## 📊 Evaluation Framework & Metrics
+
+The system implements a **dual evaluation framework** that runs in two stages:
+
+### Stage 1: Retrieval Metrics (No LLM — fast & free)
+
+| Metric | Description |
+|:---|:---|
+| **Context Precision@k** | Fraction of retrieved chunks that are relevant |
+| **Context Recall@k** | Fraction of all relevant chunks that were retrieved |
+| **MRR@k** | Reciprocal rank of the first relevant result |
+| **NDCG@k** | Normalized discounted cumulative gain (ranking quality) |
+| **Hit Rate@k** | Binary — does any relevant chunk appear in top-k? |
+
+### Stage 2: LLM-as-Judge (Llama 3.2)
+
+| Metric | Description |
+|:---|:---|
+| **Faithfulness** | Is every claim in the answer grounded in source contexts? |
+| **Answer Relevancy** | Does the answer directly address the user's question? |
+| **Completeness** | Does the answer cover all aspects available in sources? |
+
+### Self-Correction Performance
+
+| Metric | Description |
+|:---|:---|
+| **Hallucination Detection Rate** | % of fabricated claims correctly identified by the 3-layer critic |
+| **Correction Success Rate** | % of flagged hallucinations successfully removed after refinement |
+| **Avg Correction Iterations** | Number of critique→refine loops before acceptance |
+
+Run the evaluation benchmark:
+```bash
+# Retrieval-only evaluation (fast)
+python -m scripts.run_evaluation --questions data/eval/test_questions.json --skip-llm-judge
+
+# Full dual evaluation (retrieval + LLM-as-Judge)
+python -m scripts.run_evaluation --questions data/eval/test_questions.json
+```
+
+---
+
 ## 🧪 Verification & Demo
 
 To help you quickly load sample papers and verify system integration:
@@ -154,4 +240,7 @@ To help you quickly load sample papers and verify system integration:
    
    # Run retrieval integration test
    python -m tests.test_retrieval
+
+   # Run full pipeline integration test (requires Ollama + Neo4j)
+   python -m tests.test_pipeline
    ```

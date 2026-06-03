@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+
+      - name: Lint with Ruff
+        run: |
+          ruff check src/ tests/ scripts/ --output-format=github
+
+      - name: Validate imports and schemas
+        env:
+          PYTHONPATH: .
+        run: |
+          python -c "from src.config import Settings; print('Config OK')"
+          python -c "from src.models.schemas import QueryRequest, QueryResponse, CritiqueResult; print('Schemas OK')"
+          python -c "from src.evaluation.retrieval_metrics import RetrievalEvaluator; print('Evaluator OK')"
+          python -c "from src.models.llm_client import OllamaClient; print('LLM Client OK')"
+
+      - name: Run retrieval evaluator unit test
+        env:
+          PYTHONPATH: .
+        run: |
+          python -c "
+          from src.evaluation.retrieval_metrics import RetrievalEvaluator
+          evaluator = RetrievalEvaluator()
+
+          # Test with known values
+          result = evaluator.evaluate(
+              retrieved_chunk_ids=['c1', 'c2', 'c3', 'c4', 'c5'],
+              relevant_chunk_ids=['c2', 'c5', 'c9'],
+              k=5,
+          )
+          assert result.hit_rate_at_k == 1.0, f'Hit rate should be 1.0, got {result.hit_rate_at_k}'
+          assert result.mrr_at_k == 0.5, f'MRR should be 0.5, got {result.mrr_at_k}'
+          assert result.context_recall > 0, 'Context recall should be > 0'
+          assert result.ndcg_at_k > 0, 'NDCG should be > 0'
+          print(f'Retrieval Evaluator: Precision={result.context_precision}, Recall={result.context_recall}, MRR={result.mrr_at_k}, NDCG={result.ndcg_at_k}, HitRate={result.hit_rate_at_k}')
+          print('All retrieval evaluator tests passed!')
+          "

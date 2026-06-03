@@ -131,17 +131,18 @@ When a user submits a query:
 The primary files implementing these systems include:
 
 * **Config & Schemas**:
-  * [src/config.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/config.py) — Central application configuration.
-  * [src/models/schemas.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/models/schemas.py) — Shared Pydantic data models.
+  * [src/config.py](../src/config.py) — Central application configuration.
+  * [src/models/schemas.py](../src/models/schemas.py) — Shared Pydantic data models.
 * **Storage Layer**:
-  * [src/storage/document_store.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/storage/document_store.py) — Metadata storage and SQLite configuration.
-  * [src/storage/vector_store.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/storage/vector_store.py) — ChromaDB partition management.
-  * [src/storage/entity_graph.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/storage/entity_graph.py) — Neo4j graph driver.
+  * [src/storage/document_store.py](../src/storage/document_store.py) — Metadata storage and SQLite configuration.
+  * [src/storage/vector_store.py](../src/storage/vector_store.py) — ChromaDB partition management.
+  * [src/storage/entity_graph.py](../src/storage/entity_graph.py) — Neo4j graph driver.
 * **Agent System**:
-  * [src/agents/query_analyzer.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/agents/query_analyzer.py) — Query analyzer.
-  * [src/agents/retriever.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/agents/retriever.py) — Multi-stage retrieval.
-  * [src/agents/generator.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/agents/generator.py) — Answer generation.
-  * [src/agents/critic.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/agents/critic.py) — Hallucination evaluation.
-  * [src/agents/refiner.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/agents/refiner.py) — Answer refiner.
+  * [src/agents/query_analyzer.py](../src/agents/query_analyzer.py) — Query analyzer.
+  * [src/agents/retriever.py](../src/agents/retriever.py) — Multi-stage retrieval.
+  * [src/agents/generator.py](../src/agents/generator.py) — Answer generation.
+  * [src/agents/critic.py](../src/agents/critic.py) — Hallucination evaluation.
+  * [src/agents/refiner.py](../src/agents/refiner.py) — Answer refiner.
 * **Orchestration**:
-  * [src/pipeline/orchestrator.py](file:///c:/Users/maitr/OneDrive/Desktop/projects/Agentic-LLM-System-with-Self-Correction/src/pipeline/orchestrator.py) — Orchestrator combining retriever, generator, critic, and refiner.
+  * [src/pipeline/orchestrator.py](../src/pipeline/orchestrator.py) — Orchestrator combining retriever, generator, critic, and refiner.
+
