@@ -32,7 +32,6 @@ ENV/
 # ─── Data & Models (too large for git) ─────────────────
 chroma_db/
 models/
-app/
 data/chromadb/
 data/metadata.db
 data/test_storage_run/
