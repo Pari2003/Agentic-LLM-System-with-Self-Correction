@@ -48,7 +48,7 @@ class EntityGraph:
         self.user = user or settings.neo4j_user
         self.password = password or settings.neo4j_password
         self.db_path = db_path or settings.sqlite_file
-        
+
         logger.info("neo4j_driver_init_start", uri=self.uri, user=self.user)
         self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
         self._init_constraints()
@@ -73,9 +73,7 @@ class EntityGraph:
                     "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE"
                 )
                 # Index on Entity name for fast searching/lookup
-                session.run(
-                    "CREATE INDEX entity_name IF NOT EXISTS FOR (e:Entity) ON (e.name)"
-                )
+                session.run("CREATE INDEX entity_name IF NOT EXISTS FOR (e:Entity) ON (e.name)")
                 # Index on Entity session_id for fast cleanup and session-based lookups
                 session.run(
                     "CREATE INDEX entity_session IF NOT EXISTS FOR (e:Entity) ON (e.session_id)"
@@ -125,14 +123,16 @@ class EntityGraph:
         entity_data = []
         for e in entities:
             session_id = self._get_session_id_for_document(e.document_id)
-            entity_data.append({
-                "id": e.id,
-                "name": e.name,
-                "type": e.entity_type.value,
-                "document_id": e.document_id,
-                "chunk_id": e.chunk_id,
-                "session_id": session_id
-            })
+            entity_data.append(
+                {
+                    "id": e.id,
+                    "name": e.name,
+                    "type": e.entity_type.value,
+                    "document_id": e.document_id,
+                    "chunk_id": e.chunk_id,
+                    "session_id": session_id,
+                }
+            )
 
         # 2. Save Entities in a transaction
         try:
@@ -140,7 +140,7 @@ class EntityGraph:
                 entity_query = """
                 UNWIND $entities AS ent
                 MERGE (e:Entity {name: ent.name, session_id: ent.session_id})
-                ON CREATE SET 
+                ON CREATE SET
                     e.id = ent.id,
                     e.type = ent.type,
                     e.document_id = ent.document_id,
@@ -152,7 +152,7 @@ class EntityGraph:
                 for r in relationships:
                     session_id = self._get_session_id_for_chunk(r.chunk_id)
                     rel_label = sanitize_relationship_type(r.relation_type)
-                    
+
                     # Match by name and session_id to connect the correct nodes within the same session
                     rel_query = f"""
                     MATCH (s:Entity {{name: $source_name, session_id: $session_id}})
@@ -170,9 +170,9 @@ class EntityGraph:
                         session_id=session_id,
                         id=r.id,
                         chunk_id=r.chunk_id,
-                        confidence=r.confidence
+                        confidence=r.confidence,
                     )
-            
+
             logger.info(
                 "graph_elements_saved",
                 num_entities=len(entities),
@@ -197,7 +197,7 @@ class EntityGraph:
                     RETURN e.id AS id, e.name AS name, e.type AS entity_type, e.document_id AS document_id, e.chunk_id AS chunk_id
                     """,
                     q=clean_query,
-                    session_id=session_id
+                    session_id=session_id,
                 )
                 return [record.data() for record in result]
         except Exception as e:
@@ -212,18 +212,18 @@ class EntityGraph:
                     """
                     MATCH (s:Entity)-[r]->(t:Entity)
                     WHERE s.id = $entity_id OR t.id = $entity_id
-                    RETURN r.id AS id, 
-                           s.id AS source_entity_id, 
-                           s.name AS source_entity_name, 
-                           type(r) AS relation_type, 
-                           t.id AS target_entity_id, 
-                           t.name AS target_entity_name, 
-                           r.chunk_id AS chunk_id, 
-                           r.confidence AS confidence, 
-                           s.name AS source_name, 
+                    RETURN r.id AS id,
+                           s.id AS source_entity_id,
+                           s.name AS source_entity_name,
+                           type(r) AS relation_type,
+                           t.id AS target_entity_id,
+                           t.name AS target_entity_name,
+                           r.chunk_id AS chunk_id,
+                           r.confidence AS confidence,
+                           s.name AS source_name,
                            t.name AS target_name
                     """,
-                    entity_id=entity_id
+                    entity_id=entity_id,
                 )
                 return [record.data() for record in result]
         except Exception as e:
@@ -238,16 +238,16 @@ class EntityGraph:
                     """
                     MATCH (s:Entity)-[r]->(t:Entity)
                     WHERE r.chunk_id = $chunk_id
-                    RETURN r.id AS id, 
-                           s.id AS source_entity_id, 
-                           s.name AS source_entity_name, 
-                           type(r) AS relation_type, 
-                           t.id AS target_entity_id, 
-                           t.name AS target_entity_name, 
-                           r.chunk_id AS chunk_id, 
+                    RETURN r.id AS id,
+                           s.id AS source_entity_id,
+                           s.name AS source_entity_name,
+                           type(r) AS relation_type,
+                           t.id AS target_entity_id,
+                           t.name AS target_entity_name,
+                           r.chunk_id AS chunk_id,
                            r.confidence AS confidence
                     """,
-                    chunk_id=chunk_id
+                    chunk_id=chunk_id,
                 )
                 return [record.data() for record in result]
         except Exception as e:
@@ -264,7 +264,7 @@ class EntityGraph:
                     MATCH (n {session_id: $session_id})
                     DETACH DELETE n
                     """,
-                    session_id=session_id
+                    session_id=session_id,
                 )
             logger.info("neo4j_session_cleanup_complete", session_id=session_id)
         except Exception as e:
