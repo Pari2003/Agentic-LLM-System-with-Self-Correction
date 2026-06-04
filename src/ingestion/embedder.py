@@ -35,21 +35,20 @@ class Embedder:
 
         # 1. Extract texts
         texts = [chunk.text for chunk in chunks]
-        
+
         logger.info("embed_chunks_start", num_chunks=len(chunks))
 
         # 2. Get embeddings in batches
         try:
             embeddings = await self.client.embed_batch(texts)
-            
+
             # 3. Assign back to chunk schemas
             for i, chunk in enumerate(chunks):
                 chunk.embedding = embeddings[i]
-                
+
             logger.info("embed_chunks_complete", num_chunks=len(chunks))
             return chunks
 
         except Exception as e:
             logger.error("embed_chunks_failed", error=str(e))
             raise
-

@@ -81,7 +81,7 @@ class PDFParser:
                     # 2. Extract tables
                     tables = page.find_tables()
                     table_bboxes = []
-                    
+
                     for table in tables:
                         table_bboxes.append(table.bbox)
                         table_data = table.extract()
@@ -95,7 +95,7 @@ class PDFParser:
                         # Extract text outside tables by filtering
                         # We sort bboxes from top to bottom
                         sorted_bboxes = sorted(table_bboxes, key=lambda b: b[1])
-                        
+
                         last_y = 0
                         for bbox in sorted_bboxes:
                             x0, y0, x1, y1 = bbox
@@ -105,7 +105,7 @@ class PDFParser:
                             if text:
                                 page_text += text + "\n"
                             last_y = y1
-                        
+
                         # Extract remaining text below the last table
                         crop = page.crop((0, last_y, page.width, page.height))
                         text = crop.extract_text()
@@ -153,15 +153,17 @@ class PDFParser:
                         img_base64 = base64.b64encode(image_bytes).decode("utf-8")
                         # Format as data URI
                         formatted_uri = f"data:image/{image_ext};base64,{img_base64}"
-                        
+
                         if page_num not in images_by_page:
                             images_by_page[page_num] = []
                         images_by_page[page_num].append(formatted_uri)
 
-            logger.debug("pdf_image_extraction_complete", pages_with_images=list(images_by_page.keys()))
+            logger.debug(
+                "pdf_image_extraction_complete", pages_with_images=list(images_by_page.keys())
+            )
         except Exception as e:
             logger.warning("pdf_image_extraction_error", path=str(pdf_path), error=str(e))
-            
+
         return images_by_page
 
     def _clean_text(self, text: str) -> str:
@@ -171,10 +173,10 @@ class PDFParser:
         """
         if not text:
             return ""
-        
+
         # Replace common ligatures
         text = text.replace("ﬁ", "fi").replace("ﬂ", "fl").replace("ﬀ", "ff")
-        
+
         lines = []
         for line in text.split("\n"):
             line = line.strip()
@@ -183,7 +185,7 @@ class PDFParser:
                 continue
             if line:
                 lines.append(line)
-                
+
         return "\n".join(lines)
 
     def _detect_section_title(self, page: pdfplumber.page.Page) -> Optional[str]:
@@ -204,7 +206,7 @@ class PDFParser:
             current_word = []
             current_font = None
             current_size = 0
-            
+
             for c in head_chars:
                 if c["text"].isspace():
                     if current_word:
@@ -214,7 +216,7 @@ class PDFParser:
                     current_word.append(c["text"])
                     current_font = c.get("fontname", "")
                     current_size = c.get("size", 0)
-            
+
             if current_word:
                 words.append(("".join(current_word), current_font, current_size))
 
@@ -261,7 +263,7 @@ class PDFParser:
             if len(row) < len(headers):
                 row.extend([""] * (len(headers) - len(row)))
             elif len(row) > len(headers):
-                row = row[:len(headers)]
+                row = row[: len(headers)]
             markdown += "| " + " | ".join(row) + " |\n"
 
         return markdown

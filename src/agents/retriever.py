@@ -67,18 +67,14 @@ class Retriever(BaseAgent):
         # ─── Step 1: Query Analysis ───
         step_timer = self.start_timer()
         query_analysis = await self.query_analyzer.analyze(query)
-        latencies["query_analysis_ms"] = self.stop_timer_and_log(
-            "step_query_analysis", step_timer
-        )
+        latencies["query_analysis_ms"] = self.stop_timer_and_log("step_query_analysis", step_timer)
 
         # ─── Step 2: Embed Query ───
         step_timer = self.start_timer()
         try:
             # Embed primary search query from rewritten queries, default to original
             primary_query = (
-                query_analysis.search_queries[0]
-                if query_analysis.search_queries
-                else query
+                query_analysis.search_queries[0] if query_analysis.search_queries else query
             )
             query_vector = await self.llm_client.embed_single(primary_query)
         except Exception as e:

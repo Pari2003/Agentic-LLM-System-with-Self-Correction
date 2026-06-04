@@ -14,7 +14,6 @@ Algorithm:
 from __future__ import annotations
 
 import re
-from typing import List, Tuple
 
 import numpy as np
 import structlog
@@ -49,7 +48,7 @@ class SemanticChunker:
         # Split on period/question/exclamation followed by space and uppercase letter,
         # while avoiding common abbreviations (e.g., e.g., i.e., Al., Fig., Vol.)
         sentence_end = re.compile(
-            r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<![A-Z]\.)(?<=\.|\?|\!)\s+(?=[A-Z0-9])'
+            r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<![A-Z]\.)(?<=\.|\?|\!)\s+(?=[A-Z0-9])"
         )
         sentences = sentence_end.split(text)
         return [s.strip() for s in sentences if s.strip()]
@@ -58,7 +57,7 @@ class SemanticChunker:
         """Merge short sentences with adjacent ones to make embeddings reliable."""
         grouped: list[str] = []
         temp_group: list[str] = []
-        
+
         for s in sentences:
             temp_group.append(s)
             combined = " ".join(temp_group)
@@ -66,13 +65,13 @@ class SemanticChunker:
             if len(combined.split()) >= 15 or len(combined) >= 80:
                 grouped.append(combined)
                 temp_group = []
-                
+
         if temp_group:
             if grouped:
                 grouped[-1] += " " + " ".join(temp_group)
             else:
                 grouped.append(" ".join(temp_group))
-                
+
         return grouped
 
     def _cosine_similarity(self, v1: list[float], v2: list[float]) -> float:
@@ -88,7 +87,7 @@ class SemanticChunker:
         self,
         text: str,
         embeddings: list[list[float]],  # Precomputed sentence group embeddings
-        sentence_groups: list[str],     # The sentence groups matching the embeddings
+        sentence_groups: list[str],  # The sentence groups matching the embeddings
     ) -> list[str]:
         """Chunk text using precomputed embeddings for the sentence groups.
 
@@ -105,7 +104,9 @@ class SemanticChunker:
         if len(sentence_groups) == 1:
             return sentence_groups
 
-        assert len(sentence_groups) == len(embeddings), "Sentence groups and embeddings count must match."
+        assert len(sentence_groups) == len(embeddings), (
+            "Sentence groups and embeddings count must match."
+        )
 
         # 1. Compute similarities between adjacent sentence group embeddings
         similarities: list[float] = []
@@ -153,17 +154,17 @@ class SemanticChunker:
         """Iterate through chunks to ensure they fit min/max token sizes."""
         constrained: list[str] = []
         current_buffer: list[str] = []
-        
+
         for chunk in raw_chunks:
             chunk_tokens = self.count_tokens(chunk)
-            
+
             # If a single chunk is larger than max_tokens, split it naively/sentence-wise
             if chunk_tokens > self.max_tokens:
                 # Flush the buffer first
                 if current_buffer:
                     constrained.append(" ".join(current_buffer))
                     current_buffer = []
-                
+
                 # Split large chunk into sub-chunks
                 sub_sentences = self.split_into_sentences(chunk)
                 sub_buffer: list[str] = []
@@ -195,7 +196,7 @@ class SemanticChunker:
         # Perform a clean up pass: merge any tiny chunks that are below min_tokens
         merged_constrained: list[str] = []
         temp_merge: list[str] = []
-        
+
         for chunk in constrained:
             temp_merge.append(chunk)
             if self.count_tokens(" ".join(temp_merge)) >= self.min_tokens:

@@ -58,10 +58,7 @@ class Critic(BaseAgent):
         context_ids = [ctx.parent_chunk.id for ctx in contexts]
 
         # 3. Verify all claims concurrently
-        tasks = [
-            self.detector.verify_claim(claim, context_texts, context_ids)
-            for claim in claims
-        ]
+        tasks = [self.detector.verify_claim(claim, context_texts, context_ids) for claim in claims]
         verifications = await asyncio.gather(*tasks)
 
         # 4. Score overall response

@@ -14,11 +14,12 @@ but feeds the generator LLM the larger, context-rich parent chunk.
 from __future__ import annotations
 
 import uuid
-import tiktoken
+
 import structlog
+import tiktoken
 
 from src.config import settings
-from src.models.schemas import Chunk, ChunkLevel, ChunkMetadata, ChunkType, ParentChunk
+from src.models.schemas import Chunk, ChunkLevel, ChunkMetadata, ParentChunk
 
 logger = structlog.get_logger(__name__)
 
@@ -42,7 +43,9 @@ class ParentChildLinker:
         self,
         document_id: str,
         session_id: str,
-        child_texts_with_meta: list[dict],  # list of dicts with {"text": str, "page_number": int, "section_title": str, "chunk_type": ChunkType}
+        child_texts_with_meta: list[
+            dict
+        ],  # list of dicts with {"text": str, "page_number": int, "section_title": str, "chunk_type": ChunkType}
     ) -> tuple[list[Chunk], list[ParentChunk]]:
         """Group consecutive child chunks into parent chunks and establish links.
 
@@ -74,7 +77,7 @@ class ParentChildLinker:
 
             parent_id = f"parent_{uuid.uuid4()}"
             parent_text = "\n\n".join(c["text"] for c in current_parent_children)
-            
+
             # Aggregate pages in the parent
             pages = sorted(list(set(c["page_number"] for c in current_parent_children)))
             # Main section title is the one from the first child in the group
@@ -95,7 +98,7 @@ class ParentChildLinker:
             # 2. Create Child Chunks and link to Parent ID
             for idx, child_data in enumerate(current_parent_children):
                 child_id = f"child_{uuid.uuid4()}"
-                
+
                 metadata = ChunkMetadata(
                     document_id=document_id,
                     session_id=session_id,
@@ -120,7 +123,7 @@ class ParentChildLinker:
                 parent_chunk.child_ids.append(child_id)
 
             parent_chunks.append(parent_chunk)
-            
+
             # Reset buffer
             current_parent_children = []
             current_parent_tokens = 0

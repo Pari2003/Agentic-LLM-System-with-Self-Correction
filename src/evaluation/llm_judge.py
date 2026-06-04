@@ -79,9 +79,7 @@ class LLMJudge:
 
         return result
 
-    async def _evaluate_faithfulness(
-        self, answer: str, contexts: list[str]
-    ) -> float:
+    async def _evaluate_faithfulness(self, answer: str, contexts: list[str]) -> float:
         """Score how well every claim in the answer is grounded in the sources.
 
         Returns a score between 0.0 (completely unfaithful) and 1.0 (fully grounded).
@@ -89,9 +87,7 @@ class LLMJudge:
         if not contexts:
             return 0.0
 
-        context_str = "\n---\n".join(
-            f"Source {i+1}:\n{ctx}" for i, ctx in enumerate(contexts)
-        )
+        context_str = "\n---\n".join(f"Source {i + 1}:\n{ctx}" for i, ctx in enumerate(contexts))
 
         system_prompt = (
             "You are an impartial evaluation agent. Your task is to assess the "
@@ -104,7 +100,7 @@ class LLMJudge:
             "- 0.7-0.9: Most claims are supported, minor unsupported inferences.\n"
             "- 0.4-0.6: Mixed — some claims are supported, some are not.\n"
             "- 0.0-0.3: Most claims are fabricated or contradicted by sources.\n\n"
-            "Output JSON: {\"score\": <float>, \"explanation\": \"<brief reason>\"}"
+            'Output JSON: {"score": <float>, "explanation": "<brief reason>"}'
         )
 
         prompt = (
@@ -128,20 +124,14 @@ class LLMJudge:
             "- 0.7-0.9: The answer mostly addresses the question with minor tangents.\n"
             "- 0.4-0.6: The answer partially addresses the question but misses key aspects.\n"
             "- 0.0-0.3: The answer is off-topic or does not address the question.\n\n"
-            "Output JSON: {\"score\": <float>, \"explanation\": \"<brief reason>\"}"
+            'Output JSON: {"score": <float>, "explanation": "<brief reason>"}'
         )
 
-        prompt = (
-            f"Question: {query}\n\n"
-            f"Answer: {answer}\n\n"
-            f"Relevancy score:"
-        )
+        prompt = f"Question: {query}\n\nAnswer: {answer}\n\nRelevancy score:"
 
         return await self._get_score(system_prompt, prompt, "relevancy")
 
-    async def _evaluate_completeness(
-        self, query: str, answer: str, contexts: list[str]
-    ) -> float:
+    async def _evaluate_completeness(self, query: str, answer: str, contexts: list[str]) -> float:
         """Score how completely the answer covers all aspects of the question.
 
         Returns a score between 0.0 (nothing covered) and 1.0 (all aspects addressed).
@@ -149,9 +139,7 @@ class LLMJudge:
         if not contexts:
             return 0.0
 
-        context_str = "\n---\n".join(
-            f"Source {i+1}:\n{ctx}" for i, ctx in enumerate(contexts)
-        )
+        context_str = "\n---\n".join(f"Source {i + 1}:\n{ctx}" for i, ctx in enumerate(contexts))
 
         system_prompt = (
             "You are an impartial evaluation agent. Your task is to assess whether "
@@ -162,7 +150,7 @@ class LLMJudge:
             "- 0.7-0.9: Most aspects are covered, minor details missing.\n"
             "- 0.4-0.6: Several important aspects are missing from the answer.\n"
             "- 0.0-0.3: The answer is shallow or only covers a fraction of what is available.\n\n"
-            "Output JSON: {\"score\": <float>, \"explanation\": \"<brief reason>\"}"
+            'Output JSON: {"score": <float>, "explanation": "<brief reason>"}'
         )
 
         prompt = (
@@ -174,9 +162,7 @@ class LLMJudge:
 
         return await self._get_score(system_prompt, prompt, "completeness")
 
-    async def _get_score(
-        self, system_prompt: str, prompt: str, metric_name: str
-    ) -> float:
+    async def _get_score(self, system_prompt: str, prompt: str, metric_name: str) -> float:
         """Send evaluation prompt to LLM and parse the numeric score from JSON response."""
         try:
             result = await self.llm_client.generate_json(

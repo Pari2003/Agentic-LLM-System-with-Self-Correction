@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from typing import Optional
 
 import structlog
 
@@ -24,18 +23,18 @@ logger = structlog.get_logger(__name__)
 def extract_score(response_text: str) -> float:
     """Extract a 1-10 integer score from the LLM response text."""
     clean_text = response_text.strip()
-    
+
     # Try to find exactly 1 to 10 bounded by word boundaries
     matches = re.findall(r"\b([1-9]|10)\b", clean_text)
     if matches:
         return float(matches[0])
-        
+
     # Fallback to any numeric decimal sequence
     matches_float = re.findall(r"\d+\.?\d*", clean_text)
     if matches_float:
         val = float(matches_float[0])
         return min(max(val, 1.0), 10.0)
-        
+
     return 1.0  # Safe default if no score found
 
 
@@ -78,7 +77,7 @@ Score:"""
             )
             score = extract_score(response)
             elapsed = (time.perf_counter() - start) * 1000
-            
+
             logger.debug(
                 "llm_rerank_score_passage",
                 parent_id=context.parent_chunk.id,

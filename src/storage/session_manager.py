@@ -44,7 +44,7 @@ class SessionManager:
         self.graph_store = graph_store
         self.ttl_hours = ttl_hours
         self.cleanup_interval_mins = cleanup_interval_mins
-        
+
         self.scheduler: Optional[BackgroundScheduler] = None
         if start_scheduler:
             self._start_cleanup_scheduler()
@@ -119,13 +119,15 @@ class SessionManager:
         # Session is valid: Extend TTL (sliding window expiry)
         session.expires_at = now + timedelta(hours=self.ttl_hours)
         self.doc_store.save_session(session)
-        logger.debug("session_ttl_extended", session_id=session_id, new_expiry=session.expires_at.isoformat())
+        logger.debug(
+            "session_ttl_extended", session_id=session_id, new_expiry=session.expires_at.isoformat()
+        )
         return True
 
     def close_session(self, session_id: str) -> None:
         """Explicitly wipe and close a session."""
         logger.info("session_close_start", session_id=session_id)
-        
+
         # 1. Clean up ChromaDB collection vectors tagged with this session
         try:
             self.vector_store.delete_session_chunks(session_id)

@@ -53,16 +53,26 @@ class Generator(BaseAgent):
         for idx, ctx in enumerate(contexts):
             source_id = idx + 1
             doc_id = ctx.parent_chunk.document_id
-            
+
             # Fetch document title from cache or DB
             if doc_id not in doc_cache:
                 doc_meta = self.doc_store.get_document(doc_id)
-                doc_cache[doc_id] = doc_meta.title if (doc_meta and doc_meta.title) else doc_meta.filename if doc_meta else f"Doc {doc_id[:8]}"
-            
+                doc_cache[doc_id] = (
+                    doc_meta.title
+                    if (doc_meta and doc_meta.title)
+                    else doc_meta.filename
+                    if doc_meta
+                    else f"Doc {doc_id[:8]}"
+                )
+
             doc_title = doc_cache[doc_id]
             section = ctx.parent_chunk.section_title or "General"
-            pages = ", ".join(map(str, ctx.parent_chunk.page_numbers)) if ctx.parent_chunk.page_numbers else "N/A"
-            
+            pages = (
+                ", ".join(map(str, ctx.parent_chunk.page_numbers))
+                if ctx.parent_chunk.page_numbers
+                else "N/A"
+            )
+
             formatted_passages.append(
                 f"Source [{source_id}] (Document: '{doc_title}', Section: '{section}', Pages: {pages}):\n"
                 f"{ctx.parent_chunk.text}"
@@ -106,8 +116,10 @@ class Generator(BaseAgent):
                 ctx = contexts[ctx_idx]
                 doc_id = ctx.parent_chunk.document_id
                 doc_title = doc_cache.get(doc_id, f"Doc {doc_id[:8]}")
-                page_number = ctx.parent_chunk.page_numbers[0] if ctx.parent_chunk.page_numbers else None
-                
+                page_number = (
+                    ctx.parent_chunk.page_numbers[0] if ctx.parent_chunk.page_numbers else None
+                )
+
                 citations.append(
                     Citation(
                         source_id=source_id,

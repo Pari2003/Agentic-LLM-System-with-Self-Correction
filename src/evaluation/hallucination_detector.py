@@ -10,7 +10,6 @@ Layer 3: Named entity and numerical overlap check.
 from __future__ import annotations
 
 import re
-from typing import Any
 
 import numpy as np
 import structlog
@@ -37,7 +36,7 @@ class HallucinationDetector:
             A list of Claim objects.
         """
         logger.info("claim_extraction_start", text_len=len(response_text))
-        
+
         system_prompt = (
             "You are a linguistic analysis agent. Your task is to break down a passage of text "
             "into individual, self-contained atomic factual claims.\n"
@@ -49,7 +48,7 @@ class HallucinationDetector:
             "{\n"
             '  "claims": [\n'
             '    {"text": "Claim text", "source_sentence": "Original sentence"}\n'
-            '  ]\n'
+            "  ]\n"
             "}"
         )
 
@@ -150,7 +149,9 @@ class HallucinationDetector:
         overall_confidence = (0.4 * best_sim) + (0.4 * entailment_score) + (0.2 * kw_score)
 
         # We consider a claim hallucinated if overall confidence < 0.70 OR it contradicts the source.
-        is_hallucination = overall_confidence < 0.70 or entailment_res == EntailmentResult.CONTRADICTS
+        is_hallucination = (
+            overall_confidence < 0.70 or entailment_res == EntailmentResult.CONTRADICTS
+        )
 
         return ClaimVerification(
             claim=claim,
@@ -183,11 +184,7 @@ class HallucinationDetector:
             "}"
         )
 
-        prompt = (
-            f"Source text:\n{source}\n\n"
-            f"Claim to verify:\n{claim}\n\n"
-            f"Judgment:"
-        )
+        prompt = f"Source text:\n{source}\n\nClaim to verify:\n{claim}\n\nJudgment:"
 
         res_json = await self.llm_client.generate_json(
             prompt=prompt,
@@ -209,18 +206,32 @@ class HallucinationDetector:
         """Extract numbers and entities/proper nouns from claim and check overlap in source."""
         # 1. Extract numbers (integers, floats, percentages)
         numbers = re.findall(r"\b\d+(?:\.\d+)?%?\b", claim)
-        
+
         # 2. Extract capitalized proper nouns / candidate entities (excluding short words like I, etc.)
         # Pattern: matches capitalized words of length >= 2
         proper_nouns = re.findall(r"\b[A-Z][a-zA-Z0-9-]+\b", claim)
-        
+
         # Filter stop words from proper nouns (e.g. "The", "A", "In", "On", "Of", "And")
-        stop_proper = {"The", "A", "An", "In", "On", "Of", "And", "To", "For", "With", "By", "At", "From"}
+        stop_proper = {
+            "The",
+            "A",
+            "An",
+            "In",
+            "On",
+            "Of",
+            "And",
+            "To",
+            "For",
+            "With",
+            "By",
+            "At",
+            "From",
+        }
         proper_nouns = [w for w in proper_nouns if w not in stop_proper]
 
         # Merge extracted keywords
         keywords = list(set(numbers + proper_nouns))
-        
+
         if not keywords:
             # If no keywords or numbers exist, default to 1.0 (so we don't penalize simple statements)
             return 1.0, [], []

@@ -25,12 +25,9 @@ import structlog
 # Ensure the project root is on the path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.config import settings
 from src.evaluation.llm_judge import LLMJudge
-from src.evaluation.metrics_collector import MetricsCollector
 from src.evaluation.retrieval_metrics import RetrievalEvaluator
 from src.models.llm_client import OllamaClient
-from src.models.schemas import EvalResult, QueryRequest
 
 logger = structlog.get_logger(__name__)
 
@@ -63,10 +60,12 @@ async def run_retrieval_evaluation(
         relevant = q.get("relevant_chunk_ids", [])
 
         if retrieved and relevant:
-            batch_data.append({
-                "retrieved_chunk_ids": retrieved,
-                "relevant_chunk_ids": relevant,
-            })
+            batch_data.append(
+                {
+                    "retrieved_chunk_ids": retrieved,
+                    "relevant_chunk_ids": relevant,
+                }
+            )
 
     if batch_data:
         avg_metrics = evaluator.evaluate_batch(batch_data, k=k)
@@ -114,7 +113,7 @@ async def run_llm_judge_evaluation(
         answer = q["predicted_answer"]
         contexts = q.get("contexts", [])
 
-        print(f"\n  [{i+1}/{len(evaluatable)}] Evaluating: {query[:60]}...")
+        print(f"\n  [{i + 1}/{len(evaluatable)}] Evaluating: {query[:60]}...")
 
         result = await judge.evaluate(
             query=query,
@@ -186,9 +185,7 @@ def display_final_report(
 
 
 async def main():
-    parser = argparse.ArgumentParser(
-        description="Run the Dual Evaluation Benchmark Suite"
-    )
+    parser = argparse.ArgumentParser(description="Run the Dual Evaluation Benchmark Suite")
     parser.add_argument(
         "--questions",
         type=str,

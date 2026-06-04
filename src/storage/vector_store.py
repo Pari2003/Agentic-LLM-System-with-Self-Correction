@@ -53,7 +53,7 @@ class VectorStore:
             if not chunk.embedding:
                 logger.error("chunk_missing_embedding", chunk_id=chunk.id)
                 continue
-            
+
             ids.append(chunk.id)
             embeddings.append(chunk.embedding)
             documents.append(chunk.text)
@@ -99,7 +99,7 @@ class VectorStore:
         )
 
         retrieved: list[RetrievalResult] = []
-        
+
         # Check if we have results
         if not results or not results["ids"] or not results["ids"][0]:
             logger.debug("chromadb_query_empty", session_id=session_id)
@@ -117,7 +117,7 @@ class VectorStore:
             similarity = 1.0 - distance
 
             meta = metadatas[i] or {}
-            
+
             retrieved.append(
                 RetrievalResult(
                     chunk_id=ids[i],
@@ -143,8 +143,7 @@ class VectorStore:
         """
         logger.debug("chromadb_get_session_chunks_start", session_id=session_id)
         results = self.collection.get(
-            where={"session_id": session_id},
-            include=["documents", "metadatas"]
+            where={"session_id": session_id}, include=["documents", "metadatas"]
         )
 
         chunks = []
@@ -156,13 +155,11 @@ class VectorStore:
         metadatas = results["metadatas"]
 
         for i in range(len(ids)):
-            chunks.append({
-                "id": ids[i],
-                "text": documents[i],
-                "metadata": metadatas[i] or {}
-            })
+            chunks.append({"id": ids[i], "text": documents[i], "metadata": metadatas[i] or {}})
 
-        logger.debug("chromadb_get_session_chunks_complete", session_id=session_id, count=len(chunks))
+        logger.debug(
+            "chromadb_get_session_chunks_complete", session_id=session_id, count=len(chunks)
+        )
         return chunks
 
     def delete_session_chunks(self, session_id: str) -> None:

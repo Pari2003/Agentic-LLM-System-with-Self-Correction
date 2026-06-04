@@ -17,7 +17,6 @@ Usage:
 from __future__ import annotations
 
 import statistics
-from typing import Optional
 
 import structlog
 
@@ -111,9 +110,7 @@ class MetricsCollector:
             "avg_refinement_ms": round(statistics.mean(refinement_ms), 1),
             # ─── Self-Correction ───
             "avg_correction_iterations": round(statistics.mean(correction_iterations), 2),
-            "correction_trigger_rate": round(
-                sum(1 for c in correction_iterations if c > 0) / n, 3
-            ),
+            "correction_trigger_rate": round(sum(1 for c in correction_iterations if c > 0) / n, 3),
             "max_correction_iterations": max(correction_iterations),
             # ─── Source Usage ───
             "avg_sources_used": round(statistics.mean(sources_used), 1),

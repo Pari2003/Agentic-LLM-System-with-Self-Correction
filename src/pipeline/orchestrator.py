@@ -16,7 +16,6 @@ import structlog
 
 from src.agents.critic import Critic
 from src.agents.generator import Generator
-from src.agents.query_analyzer import QueryAnalyzer
 from src.agents.refiner import Refiner
 from src.agents.retriever import Retriever
 from src.models.schemas import PipelineMetrics, QueryRequest, QueryResponse

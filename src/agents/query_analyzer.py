@@ -47,7 +47,7 @@ class QueryAnalyzer(BaseAgent):
             "2. Do not write any preamble, explanation, or postscript."
         )
 
-        prompt = f"Query: \"{query}\"\n\nJSON Output:"
+        prompt = f'Query: "{query}"\n\nJSON Output:'
 
         analysis_dict: dict[str, Any] = {}
         try:
@@ -69,16 +69,16 @@ class QueryAnalyzer(BaseAgent):
         sub_queries = analysis_dict.get("sub_queries")
         if not isinstance(sub_queries, list):
             sub_queries = []
-            
+
         extracted_entities = analysis_dict.get("extracted_entities")
         if not isinstance(extracted_entities, list):
             extracted_entities = []
-            
+
         search_queries = analysis_dict.get("search_queries")
         if not isinstance(search_queries, list) or not search_queries:
             # Fall back to searching the original query
             search_queries = [query]
-            
+
         intent = analysis_dict.get("intent", "Information retrieval query")
 
         analysis = QueryAnalysis(

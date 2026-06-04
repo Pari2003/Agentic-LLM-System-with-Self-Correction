@@ -16,8 +16,8 @@ from rank_bm25 import BM25Okapi
 
 from src.config import settings
 from src.models.schemas import RetrievalResult
-from src.storage.vector_store import VectorStore
 from src.storage.entity_graph import EntityGraph
+from src.storage.vector_store import VectorStore
 
 logger = structlog.get_logger(__name__)
 
@@ -41,7 +41,7 @@ class HybridSearch:
             return boosted_chunks
 
         logger.debug("graph_boost_lookup_start", entities=entities, session_id=session_id)
-        
+
         for ent_name in entities:
             # 1. Substring search for matching entities in Neo4j within the session
             matched_nodes = self.entity_graph.search_entities(ent_name, session_id)
@@ -95,11 +95,11 @@ class HybridSearch:
             session_id=session_id,
             top_k=max(top_k * 2, 40),
         )
-        
+
         # Create map of vector chunk_id -> RetrievalResult and ranking dictionary
         vector_rank: dict[str, int] = {}
         candidate_details: dict[str, dict[str, Any]] = {}
-        
+
         for idx, res in enumerate(vector_candidates):
             vector_rank[res.chunk_id] = idx + 1
             candidate_details[res.chunk_id] = {
@@ -111,25 +111,24 @@ class HybridSearch:
         # ─── 2. Sparse BM25 Search ───
         # Retrieve all session chunks from ChromaDB
         session_chunks = self.vector_store.get_session_chunks(session_id)
-        bm25_candidates: list[tuple[str, float]] = []
-        
+
         if session_chunks:
             # Build index on-the-fly
             doc_texts = [c["text"] for c in session_chunks]
             tokenized_corpus = [tokenize_text(text) for text in doc_texts]
             bm25_model = BM25Okapi(tokenized_corpus)
-            
+
             tokenized_query = tokenize_text(query)
             scores = bm25_model.get_scores(tokenized_query)
-            
+
             # Pair scores with chunk details and sort
             chunk_scores = []
             for i, chunk in enumerate(session_chunks):
                 chunk_scores.append((chunk["id"], float(scores[i]), chunk))
-                
+
             # Sort by score descending
             chunk_scores.sort(key=lambda x: x[1], reverse=True)
-            
+
             # Map BM25 ranking
             bm25_rank: dict[str, int] = {}
             for rank_idx, (c_id, score, chunk) in enumerate(chunk_scores):
@@ -161,19 +160,19 @@ class HybridSearch:
 
         for chunk_id in all_chunk_ids:
             score = 0.0
-            
+
             # Vector contribution
             if chunk_id in vector_rank:
                 score += vec_w / (rrf_k + vector_rank[chunk_id])
-                
+
             # BM25 contribution
             if chunk_id in bm25_rank:
                 score += bm25_w / (rrf_k + bm25_rank[chunk_id])
-                
+
             # Graph boost contribution
             if chunk_id in boosted_chunks:
                 score += boost_w
-                
+
             rrf_scores[chunk_id] = score
 
         # ─── 5. Rank and Filter ───
@@ -183,12 +182,12 @@ class HybridSearch:
         results: list[RetrievalResult] = []
         for chunk_id, score in top_chunks:
             details = candidate_details[chunk_id]
-            
+
             # Determine primary source for reporting
             in_vec = chunk_id in vector_rank
             in_bm25 = chunk_id in bm25_rank
             in_graph = chunk_id in boosted_chunks
-            
+
             if in_vec and in_bm25:
                 source = "hybrid"
             elif in_vec:
@@ -197,7 +196,7 @@ class HybridSearch:
                 source = "bm25"
             else:
                 source = "graph"
-                
+
             if in_graph:
                 source += "+graph"
 

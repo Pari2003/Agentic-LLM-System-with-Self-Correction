@@ -65,7 +65,7 @@ class ImageCaptioner:
                 "so that it can be searched and referenced in a text-based RAG pipeline."
             )
             caption_text = await self.client.caption_image(clean_base64, prompt=prompt)
-            
+
             logger.info("image_caption_success", page=page_number, caption_len=len(caption_text))
             return f"[Figure on Page {page_number} Description: {caption_text}]"
 

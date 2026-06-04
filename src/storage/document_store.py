@@ -19,7 +19,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import structlog
 
@@ -119,14 +119,22 @@ class DocumentStore:
                 )
                 """
             )
-            
+
             # Indexes for faster queries
             conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_session ON documents(session_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_parents_doc ON parent_chunks(document_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_parents_session ON parent_chunks(session_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_child_meta_parent ON child_chunk_metadata(parent_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_child_meta_session ON child_chunk_metadata(session_id);")
-            
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_parents_doc ON parent_chunks(document_id);"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_parents_session ON parent_chunks(session_id);"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_child_meta_parent ON child_chunk_metadata(parent_id);"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_child_meta_session ON child_chunk_metadata(session_id);"
+            )
+
             conn.commit()
 
         logger.info("sqlite_db_init_complete")
@@ -175,6 +183,22 @@ class DocumentStore:
             conn.commit()
         logger.info("sqlite_session_delete_complete", session_id=session_id)
 
+    def list_sessions(self) -> list[Session]:
+        """List all active sessions."""
+        with self._get_connection() as conn:
+            rows = conn.execute("SELECT * FROM sessions").fetchall()
+            return [
+                Session(
+                    id=row["id"],
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                    expires_at=datetime.fromisoformat(row["expires_at"])
+                    if row["expires_at"]
+                    else None,
+                    is_active=bool(row["is_active"]),
+                )
+                for row in rows
+            ]
+
     # ─── Document Management ──────────────────────────────────────────────
 
     def save_document(self, doc: Document) -> None:
@@ -183,9 +207,9 @@ class DocumentStore:
             conn.execute(
                 """
                 INSERT INTO documents (
-                    id, filename, title, authors, abstract, summary, 
-                    total_pages, total_chunks, total_parent_chunks, 
-                    total_child_chunks, total_tables, total_figures, 
+                    id, filename, title, authors, abstract, summary,
+                    total_pages, total_chunks, total_parent_chunks,
+                    total_child_chunks, total_tables, total_figures,
                     session_id, ingested_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -234,7 +258,9 @@ class DocumentStore:
     def get_documents_by_session(self, session_id: str) -> list[Document]:
         """Get all document records belonging to a session."""
         with self._get_connection() as conn:
-            rows = conn.execute("SELECT * FROM documents WHERE session_id = ?", (session_id,)).fetchall()
+            rows = conn.execute(
+                "SELECT * FROM documents WHERE session_id = ?", (session_id,)
+            ).fetchall()
             docs = []
             for row in rows:
                 docs.append(
@@ -263,7 +289,7 @@ class DocumentStore:
         """Bulk save Parent Chunks into SQLite."""
         if not parents:
             return
-        
+
         with self._get_connection() as conn:
             conn.executemany(
                 """
@@ -292,7 +318,7 @@ class DocumentStore:
             row = conn.execute("SELECT * FROM parent_chunks WHERE id = ?", (parent_id,)).fetchone()
             if not row:
                 return None
-            
+
             # Find associated child ids from lookup
             child_rows = conn.execute(
                 "SELECT id FROM child_chunk_metadata WHERE parent_id = ?", (parent_id,)
@@ -331,7 +357,16 @@ class DocumentStore:
                     id, parent_id, document_id, session_id, chunk_type, page_number, section_title, chunk_index
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                zip(child_ids, parent_ids, [doc_id] * len(child_ids), [session_id] * len(child_ids), types, pages, sections, indexes),
+                zip(
+                    child_ids,
+                    parent_ids,
+                    [doc_id] * len(child_ids),
+                    [session_id] * len(child_ids),
+                    types,
+                    pages,
+                    sections,
+                    indexes,
+                ),
             )
             conn.commit()
 
@@ -347,7 +382,7 @@ class DocumentStore:
             if not row:
                 return None
             return self.get_parent_chunk(row["parent_id"])
-        
+
     def get_expired_sessions(self) -> list[str]:
         """Find all session IDs that have expired past their TTL time."""
         now = datetime.now(timezone.utc).isoformat()
