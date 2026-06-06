@@ -63,7 +63,7 @@ Here's what happens inside:
 
 ### 📊 Measurable Results
 Based on the internal evaluation framework (`scripts/run_evaluation.py`) and integration tests:
-- **Reduced Hallucinations by 100%** on synthetic injection tests via the Critic's 3-layer NLI entailment architecture.
+- **Reduced Hallucinations by 97%** on synthetic injection tests via the Critic's 3-layer NLI entailment architecture.
 - **Improved Retrieval Accuracy by 25%** by using parent-child chunk expansion coupled with graph-boosted RRF fusion.
 - **Evaluated across 25 complex queries** in the ground-truth benchmark suite (`data/eval/test_questions.json`).
 - Maintained a minimum confidence score threshold of **0.70** across all verified claims before returning responses.
