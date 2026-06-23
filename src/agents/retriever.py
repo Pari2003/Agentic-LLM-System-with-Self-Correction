@@ -8,10 +8,13 @@ Orchestrates the entire 3-stage retrieval pipeline:
 4. LLM Reranking (Passage scoring on 1-10 scale)
 """
 
+
 from __future__ import annotations
 
+import uuid
 import structlog
 
+from src.storage.entity_graph import EntityGraph
 from src.agents.base import BaseAgent
 from src.agents.query_analyzer import QueryAnalyzer
 from src.config import settings
@@ -34,8 +37,10 @@ class Retriever(BaseAgent):
         hybrid_search: HybridSearch,
         parent_expander: ParentExpander,
         llm_reranker: LLMReranker,
+        entity_graph: EntityGraph,
     ):
         super().__init__(llm_client)
+        self.entity_graph = entity_graph
         self.query_analyzer = query_analyzer
         self.hybrid_search = hybrid_search
         self.parent_expander = parent_expander
@@ -97,6 +102,22 @@ class Retriever(BaseAgent):
         latencies["hybrid_search_ms"] = self.stop_timer_and_log(
             "step_hybrid_search", step_timer, num_children=len(child_results)
         )
+        # # Save Question -> Chunk retrieval graph
+        # try:
+        #     question_id = str(uuid.uuid4())
+
+        #     self.entity_graph.save_query_chunk_relationships(
+        #     question=query,
+        #     question_id=question_id,
+        #     session_id=session_id,
+        #     retrieved_chunks=child_results,
+        #     )
+
+        # except Exception as e:
+        #     self.logger.warning(
+        #     "query_chunk_graph_save_failed",
+        #     error=str(e),
+        #     )
 
         # ─── Step 4: Stage 2 Parent Expansion ───
         step_timer = self.start_timer()
@@ -117,6 +138,22 @@ class Retriever(BaseAgent):
         )
         latencies["llm_rerank_ms"] = self.stop_timer_and_log(
             "step_llm_rerank", step_timer, final_contexts_count=len(final_contexts)
+        )
+
+        try:
+            question_id = str(uuid.uuid4())
+
+            self.entity_graph.save_final_context_graph(
+            question=query,
+            question_id=question_id,
+            session_id=session_id,
+            final_contexts=final_contexts,
+        )
+
+        except Exception as e:
+            self.logger.warning(
+            "final_context_graph_failed",
+            error=str(e),
         )
 
         total_ms = self.stop_timer_and_log(

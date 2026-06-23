@@ -382,6 +382,26 @@ class DocumentStore:
             if not row:
                 return None
             return self.get_parent_chunk(row["parent_id"])
+    
+    # Existing Sessions
+    def get_existing_sessions(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            rows = conn.execute(
+                """
+                SELECT DISTINCT
+                s.id,
+                d.filename,
+                s.created_at
+                FROM sessions s
+                JOIN documents d
+                    ON s.id = d.session_id
+                ORDER BY s.created_at DESC
+                """
+            ).fetchall()
+
+        return [dict(row) for row in rows]
 
     def get_expired_sessions(self) -> list[str]:
         """Find all session IDs that have expired past their TTL time."""

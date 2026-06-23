@@ -253,6 +253,142 @@ class EntityGraph:
         except Exception as e:
             logger.error("get_relationships_for_chunk_failed", chunk_id=chunk_id, error=str(e))
             return []
+    
+    def save_query_chunk_relationships(
+            self,
+        question: str,
+        question_id: str,
+        session_id: str,
+        retrieved_chunks: list,
+    ) -> None:
+        """
+        Store Question -> Chunk retrieval graph.
+        """
+
+        try:
+            with self.driver.session() as session:
+
+                # Create Question node
+                session.run(
+                    """
+                    MERGE (q:Question {id:$qid})
+                    SET q.text=$question,
+                    q.session_id=$session_id
+                    """,
+                    qid=question_id,
+                    question=question,
+                    session_id=session_id,
+                )
+
+                # Create chunk nodes + relationships
+                for rank, chunk in enumerate(retrieved_chunks, start=1):
+
+                    session.run(
+                        """
+                        MERGE (c:Chunk {id:$chunk_id})
+                        SET c.text=$chunk_text,
+                        c.session_id=$session_id
+
+                        WITH c
+
+                        MATCH (q:Question {id:$qid})
+
+                        MERGE (q)-[r:RETRIEVED]->(c)
+
+                        SET r.score=$score,
+                        r.rank=$rank
+                        """,
+                        qid=question_id,
+                        chunk_id=chunk.chunk_id,
+                        chunk_text=chunk.text[:1000],
+                        session_id=session_id,
+                        score=float(chunk.score),
+                        rank=rank,
+                    )
+
+            logger.info(
+                "query_chunk_graph_saved",
+                question_id=question_id,
+                num_chunks=len(retrieved_chunks),
+            )
+
+        except Exception as e:
+            logger.error(
+                "query_chunk_graph_failed",
+                error=str(e),
+            )
+    
+    def save_final_context_graph(
+        self,
+        question: str,
+        question_id: str,
+        session_id: str,
+        final_contexts: list,
+    ):
+        """
+        Save Question -> Final Parent Chunk graph
+        """
+
+        try:
+            with self.driver.session() as session:
+
+                # Create Question node
+                session.run(
+                    """
+                    MERGE (q:Question {id:$qid})
+                    SET q.text=$question,
+                    q.session_id=$session_id
+                    """,
+                    qid=question_id,
+                    question=question,
+                    session_id=session_id,
+                )
+
+                for ctx in final_contexts:
+
+                    session.run(
+                        """
+                        MERGE (p:ParentChunk {id:$pid})
+                        SET p.text=$text,
+                        p.session_id=$session_id
+
+                        WITH p
+
+                        MATCH (q:Question {id:$qid})
+
+                        MERGE (q)-[r:USED_CONTEXT]->(p)
+
+                        SET r.rank=$rank,
+                        r.llm_score=$llm_score,
+                        r.rrf_score=$rrf_score
+                        """,
+
+                        qid=question_id,
+
+                        pid=ctx.parent_chunk.id,
+
+                        text=ctx.parent_chunk.text[:1000],
+
+                        session_id=session_id,
+
+                        rank=ctx.final_rank,
+
+                        llm_score=float(ctx.llm_relevance_score),
+
+                        rrf_score=float(ctx.rrf_score),
+                    )
+
+            logger.info(
+                "final_context_graph_saved",
+                question_id=question_id,
+                num_contexts=len(final_contexts),
+            )
+
+        except Exception as e:
+            logger.error(
+                "final_context_graph_failed",
+                error=str(e),
+            )
 
     def delete_session_graph(self, session_id: str) -> None:
         """Delete all entities and relationships associated with a session."""

@@ -145,7 +145,7 @@ async def main():
     hybrid_search = HybridSearch(vector_store, graph_store)
     parent_expander = ParentExpander(doc_store)
     llm_reranker = LLMReranker(llm_client)
-    retriever = Retriever(llm_client, query_analyzer, hybrid_search, parent_expander, llm_reranker)
+    retriever = Retriever(llm_client, query_analyzer, hybrid_search, parent_expander, llm_reranker, graph_store)
     generator = Generator(llm_client, doc_store)
     critic = Critic(llm_client)
     refiner = Refiner(llm_client, doc_store)
@@ -153,20 +153,59 @@ async def main():
     orchestrator = Orchestrator(retriever, generator, critic, refiner)
 
     # Create a fresh session
-    session_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
-    session = Session(
-        id=session_id,
-        created_at=now,
-        expires_at=now + timedelta(hours=24),
-        is_active=True
-    )
-    doc_store.save_session(session)
-    print(f"[+] Session created (ID: {session_id[:8]}...)\n")
+    existing_sessions = doc_store.get_existing_sessions()
+
+    using_existing_session = False
+
+    if existing_sessions:
+
+        print("\nExisting sessions:\n")
+
+        for i, sess in enumerate(existing_sessions, start=1):
+            print(f"{i}. {sess['filename']} ({sess['id'][:8]})")
+
+        print("0. Create New Session")
+        choice = input("\nChoose: ").strip()
+
+        if choice != "0":
+            selected = existing_sessions[int(choice)-1]
+            session_id = selected["id"]
+            using_existing_session = True
+            print(f"\n[+] Using previous session {session_id[:8]}")
+
+        else:
+            session_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc)
+            expires_at = now + timedelta(hours=24)
+            session = Session(
+                id=session_id,
+                created_at=now,
+                expires_at=expires_at,
+                is_active=True,
+            )
+            doc_store.save_session(session)
+            print(f"[+] New Session created ({session_id[:8]})")
+
+    else:
+        session_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(hours=24)
+        session = Session(
+            id=session_id,
+            created_at=now,
+            expires_at=expires_at,
+            is_active=True,
+        )
+        doc_store.save_session(session)
+        print(f"[+] New Session created ({session_id[:8]})")
 
     # Ingestion phase
     while True:
-        pdf_path = input("Enter the path to a PDF file to analyze (or 'skip' if already loaded): ").strip()
+        if using_existing_session:
+            print("\n[*] Reusing previous session chunks.")
+            pdf_path = "skip"
+        else:
+            pdf_path = input("Enter the path to a PDF file to analyze: ").strip()
         
         if pdf_path.lower() == 'skip':
             break
@@ -218,10 +257,11 @@ async def main():
             print(f"\n[-] Error during query generation: {e}")
 
     print("\n[*] Cleaning up session...")
-    graph_store.delete_session_graph(session_id)
     graph_store.close()
     await llm_client.close()
     print("[+] Done. Goodbye!")
+
+    
 
 if __name__ == "__main__":
     try:
