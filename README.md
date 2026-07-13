@@ -60,6 +60,8 @@ Here's what happens inside:
 | One-shot answer | Iterative self-correction loop |
 | Flat text chunks | Parent-child chunk hierarchy (precision + context) |
 | No knowledge graph | Neo4j entity graph boosts relevant passages |
+| Black-box retrieval | Saves retrieval traversal graphs in Neo4j for visualization |
+| Start from scratch every time | Persistent sessions via SQLite (resume previous documents instantly) |
 
 ### 📊 Measurable Results
 Based on the internal evaluation framework (`scripts/run_evaluation.py`) and integration tests:
